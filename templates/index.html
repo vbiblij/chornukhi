@@ -89,14 +89,16 @@
                     if (status !== lastStatus) {
                         statusDiv.textContent = 'Status: ' + status;
                         lastStatus = status;
-                    }
 
-                    // Update map view if it has changed
+                        // Re-enable button if tour is finished and button is disabled
+                        if (status.includes("Finished") && startBtn.disabled) {
+                            startBtn.disabled = false;
+                        }
+                    }
+                    
+                    // Update map view if it has changed. Use setView for direct control.
                     if (camera.lat !== lastLat || camera.lon !== lastLon || camera.zoom !== lastZoom) {
-                        map.flyTo([camera.lat, camera.lon], Math.round(camera.zoom), {
-                            animate: true,
-                            duration: 1.5 // animation duration in seconds
-                        });
+                        map.setView([camera.lat, camera.lon], Math.round(camera.zoom));
                         lastLat = camera.lat;
                         lastLon = camera.lon;
                         lastZoom = camera.zoom;
@@ -106,7 +108,7 @@
                     statusDiv.textContent = 'Status: Connection error';
                     console.error('Error fetching data:', error);
                 });
-        }, 300); // Poll every 300ms for smoother updates
+        }, 50); // Poll every 50ms for smoother updates
     </script>
 
 </body>
