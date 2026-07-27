@@ -6,4 +6,4 @@ contextily
 numpy
 flask
 opencv-python
-
+gunicorn
