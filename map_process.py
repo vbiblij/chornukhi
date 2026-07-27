@@ -5,68 +5,9 @@ from core.process import Process
 from core.brain import TourBrain
 from core.sim_clock import SimClock
 from core.event_bus import EventBus
-from layers import MapRenderLayer, VideoRecordLayer
-from web_server import WebServerProcess
-from utils import FrameBuffer
 
 if TYPE_CHECKING:
     from core.base_object import BaseObject
-
-class MapProcess(Process):
-    """
-    Orchestrates the tour simulation, background video recording, and live web server.
-    """
-    def __init__(self, name: str, cities: dict, capital_city_name: str,
-                 video_output_path: str, fps: int):
-        super().__init__(name=name)
-        
-        self.event_bus = EventBus()
-        self.frame_buffer = FrameBuffer()
-
-        # Setup layers for background rendering and video recording
-        self.map_render_layer = MapRenderLayer(
-            event_bus=self.event_bus,
-            cities=cities,
-            capital_city_name=capital_city_name,
-            shared_frame_buffer=self.frame_buffer,
-            dpi=100 # Keep DPI reasonable for performance
-        )
-        self.add_layer(self.map_render_layer)
-
-        # self.video_record_layer = VideoRecordLayer(
-        #     output_filepath=video_output_path,
-        #     fps=fps,
-        #     shared_frame_buffer=self.frame_buffer
-        # )
-        # self.add_layer(self.video_record_layer)
-
-        # Setup child processes
-        self.animation_process = AnimationProcess(
-            name="animation_process",
-            event_bus=self.event_bus,
-            cities=cities,
-            capital_city_name=capital_city_name
-        )
-        self.add_child(self.animation_process)
-        
-        self.web_server_process = WebServerProcess(
-            name="web_server",
-            event_bus=self.event_bus
-        )
-        self.add_child(self.web_server_process)
-
-        self.clock = SimClock()
-
-    def _solve(self, dt: float) -> None:
-        pass
-
-    def shutdown(self):
-        """Safely clean up all layers and child processes."""
-        self.remove_layer(self.map_render_layer)
-        self.remove_layer(self.video_record_layer)
-        self.remove_child(self.animation_process)
-        self.remove_child(self.web_server_process)
-
 
 class AnimationProcess(Process):
     """
