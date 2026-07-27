@@ -10,13 +10,16 @@ from map_process import AnimationProcess
 from core.sim_clock import SimClock
 from utils import FrameBuffer
 
-from layers import MapRenderLayer, VideoRecordLayer
+from layers import MapRenderLayer
 
 # --- Globals for Flask App ---
 app = Flask(__name__, template_folder='templates')
 event_bus = EventBus()
 latest_camera_view = {"lat": 50.45, "lon": 30.52, "zoom": 5}
 simulation_status = "Initializing..."
+
+simulation_started = threading.Lock()
+simulation_started.acquire() # Start in a locked state
 
 def on_camera_view_update(lat: float, lon: float, zoom: int):
     global latest_camera_view
@@ -40,18 +43,28 @@ def api_data():
     """Provides camera view and simulation status as JSON."""
     return jsonify(camera=latest_camera_view, status=simulation_status)
 
+@app.route('/start_tour', methods=['POST'])
+def start_tour():
+    """Starts the simulation tour in a background thread."""
+    if simulation_started.locked():
+        simulation_thread = threading.Thread(target=run_simulation, daemon=True)
+        simulation_thread.start()
+        simulation_started.release()
+        return jsonify(message="Tour started!")
+    else:
+        return jsonify(message="Tour is already running.")
+
 class MapProcess(Process):
     """
-    Orchestrates the tour simulation and background video recording.
+    Orchestrates the tour simulation.
     """
-    def __init__(self, name: str, cities: dict, capital_city_name: str,
-                 video_output_path: str, fps: int, event_bus: EventBus):
+    def __init__(self, name: str, cities: dict, capital_city_name: str, event_bus: EventBus):
         super().__init__(name=name)
         
         self.event_bus = event_bus
         self.frame_buffer = FrameBuffer()
 
-        # Setup layers for background rendering and video recording
+        # Setup layers for background rendering
         self.map_render_layer = MapRenderLayer(
             event_bus=self.event_bus,
             cities=cities,
@@ -89,23 +102,18 @@ def run_simulation():
     tour_cities[CAPITAL_CITY] = {"lat": HROMADA_CENTER["lat"], "lng": HROMADA_CENTER["lng"]}
 
     # --- Simulation Parameters ---
-    VIDEO_OUTPUT_FILENAME = "chornukhy_tour.mp4"
-    FPS = 24
-    SIM_DT = 1.0 / FPS
+    SIM_DT = 1.0 / 24
 
     # --- Start Simulation ---
     print(f"Found coordinates for {len(valid_settlements)} out of {len(SETTLEMENTS)} villages.")
     print("Only these will be included in the tour.")
     print("-" * 30)
     print(f"Starting map tour simulation for Chornukhy Hromada...")
-    print(f"Video will be saved to {VIDEO_OUTPUT_FILENAME}")
 
     map_process = MapProcess(
         name="ChornukhyTour",
         cities=tour_cities,
         capital_city_name=CAPITAL_CITY,
-        video_output_path=VIDEO_OUTPUT_FILENAME,
-        fps=FPS,
         event_bus=event_bus
     )
     
@@ -123,15 +131,14 @@ def run_simulation():
     finally:
         print("Shutting down...")
         print(f"Simulation finished. Total run time: {time.time() - start_time:.2f} seconds.")
+        # Re-lock to allow the tour to be started again
+        if not simulation_started.locked():
+             simulation_started.acquire()
 
-# --- Start simulation in a background thread ---
-simulation_thread = threading.Thread(target=run_simulation, daemon=True)
-simulation_thread.start()
 
 if __name__ == "__main__":
     # This block is for local development only.
     # In production, a WSGI server like Gunicorn runs the 'app' object.
-    # The simulation is already started in a background thread above.
     print("Starting Flask development server...")
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True)
 			

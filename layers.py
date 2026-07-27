@@ -1,7 +1,6 @@
 from __future__ import annotations
 import matplotlib.pyplot as plt
 import contextily as cx
-import imageio
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point
@@ -91,27 +90,3 @@ class MapRenderLayer(BaseLayer):
     def on_detach(self, process: Process) -> None:
         plt.close(self.fig)
         self.event_bus.unsubscribe("camera_view_updated", self._on_camera_view_update)
-
-
-class VideoRecordLayer(BaseLayer):
-    """
-    Records frames from a shared FrameBuffer into a video file.
-    """
-    def __init__(self, output_filepath: str, fps: int, shared_frame_buffer: FrameBuffer):
-        self.output_filepath = output_filepath
-        self.fps = fps
-        self.frame_buffer = shared_frame_buffer
-        self.writer = None
-
-    def after_step(self, process: Process, dt: float) -> None:
-        frame_rgba = self.frame_buffer.get_frame()
-        if frame_rgba is not None:
-            frame_rgb = frame_rgba[..., :3]
-            if self.writer is None:
-                self.writer = imageio.get_writer(self.output_filepath, fps=self.fps)
-            self.writer.append_data(frame_rgb)
-
-    def on_detach(self, process: Process) -> None:
-        if self.writer is not None:
-            self.writer.close()
-            print(f"Video saved to {self.output_filepath}")
