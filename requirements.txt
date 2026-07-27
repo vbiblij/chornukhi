@@ -1,0 +1,9 @@
+matplotlib
+imageio
+imageio-ffmpeg
+geopandas
+contextily
+numpy
+flask
+opencv-python
+
