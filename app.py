@@ -2,7 +2,7 @@ import time
 from data import HROMADA_CENTER, SETTLEMENTS
 from map_process import MapProcess
 import sys
-from __future__ import annotations
+
 import threading
 from flask import Flask, Response, render_template_string, jsonify
 from core.process import Process
