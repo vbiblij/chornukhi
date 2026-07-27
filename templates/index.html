@@ -5,12 +5,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <!-- Leaflet Routing Machine CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
         html, body {
             height: 100%;
             margin: 0;
@@ -27,7 +28,6 @@
             height: 100%;
             overflow-y: auto;
             padding: 20px;
-            box-sizing: border-box;
             background-color: #f8f8f8;
         }
         #sidebar h2 {
@@ -38,22 +38,26 @@
             margin-bottom: 5px;
             background-color: #fff;
             border-radius: 3px;
+            list-style-type: decimal;
+            list-style-position: inside;
         }
         .popup-content img {
             max-width: 100%;
             border-radius: 5px;
             margin-bottom: 10px;
         }
-        .popup-content button {
+        .popup-content button, #sidebar button {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
+            font-size: 1em;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-top: 10px;
         }
-        .popup-content button:hover {
+        .popup-content button:hover, #sidebar button:hover {
             background-color: #0056b3;
         }
     </style>
@@ -63,20 +67,18 @@
     <div id="map"></div>
     <div id="sidebar">
         <h2>Маршрут</h2>
-        <p>Клікніть на маркер на карті та додайте точку до свого маршруту.</p>
+        <p>Клікніть на маркер та додайте точки до маршруту.</p>
         <ul id="route-points"></ul>
-        <button id="clearRouteBtn" style="width:100%; padding: 10px; display:none;">Очистити маршрут</button>
+        <button id="buildRouteBtn" style="display:none;">Вперед! Побудувати маршрут</button>
+        <button id="clearRouteBtn" style="display:none; background-color: #dc3545;">Очистити маршрут</button>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Routing Machine JS -->
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <script>
         // 1. Initialize Map
-        const map = L.map('map').setView([50.2733, 32.9383], 11); // Centered on Chornukhy
-
+        const map = L.map('map').setView([50.2733, 32.9383], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 18,
             attribution: '© OpenStreetMap'
@@ -84,7 +86,9 @@
 
         // 2. State Management
         let routeWaypoints = [];
+        let locationsData = [];
         const routePointsList = document.getElementById('route-points');
+        const buildRouteBtn = document.getElementById('buildRouteBtn');
         const clearRouteBtn = document.getElementById('clearRouteBtn');
         let routingControl = null;
 
@@ -92,58 +96,48 @@
         function createPopupContent(location) {
             const container = document.createElement('div');
             container.className = 'popup-content';
-            
             container.innerHTML += `<h3>${location.name}</h3>`;
             if (location.photo) {
                 container.innerHTML += `<img src="${location.photo}" alt="${location.name}">`;
             }
-            
             const addButton = document.createElement('button');
             addButton.innerText = "Додати до маршруту";
             addButton.onclick = () => addToRoute(location);
-            
             container.appendChild(addButton);
             return container;
         }
 
         function addToRoute(location) {
-            // Avoid adding duplicate points
             if (routeWaypoints.find(wp => wp.latLng.lat === location.lat && wp.latLng.lng === location.lng)) {
                 alert(`${location.name} вже у вашому маршруті.`);
                 return;
             }
-
             const waypoint = L.latLng(location.lat, location.lng);
             routeWaypoints.push(waypoint);
-            
-            // Update UI
+
             const li = document.createElement('li');
             li.innerText = location.name;
             routePointsList.appendChild(li);
 
-            updateRouting();
+            if (routeWaypoints.length >= 2) {
+                buildRouteBtn.style.display = 'block';
+            }
+            clearRouteBtn.style.display = 'block';
         }
-
-        function updateRouting() {
-            // Remove old routing layer
+        
+        function drawRoute() {
             if (routingControl) {
                 map.removeControl(routingControl);
             }
+            if (routeWaypoints.length < 2) return;
 
-            if (routeWaypoints.length < 2) {
-                clearRouteBtn.style.display = 'none';
-                return;
-            }
-
-            // Create new routing control
             routingControl = L.Routing.control({
                 waypoints: routeWaypoints,
                 routeWhileDragging: true,
-                show: false, // We hide the default text instructions
-                addWaypoints: false // We manage waypoints ourselves
+                show: false,
+                addWaypoints: false
             }).addTo(map);
-
-            clearRouteBtn.style.display = 'block';
+            buildRouteBtn.style.display = 'none';
         }
 
         function clearRoute() {
@@ -153,23 +147,26 @@
                 map.removeControl(routingControl);
                 routingControl = null;
             }
+            buildRouteBtn.style.display = 'none';
             clearRouteBtn.style.display = 'none';
         }
         
+        buildRouteBtn.addEventListener('click', drawRoute);
         clearRouteBtn.addEventListener('click', clearRoute);
 
         // 4. Initial Data Fetch
         fetch('/api/locations')
             .then(response => response.json())
-            .then(locations => {
-                locations.forEach(location => {
-                    const marker = L.marker([location.lat, location.lng]).addTo(map);
-                    const popupContent = createPopupContent(location);
-                    marker.bindPopup(popupContent);
+            .then(data => {
+                locationsData = data;
+                locationsData.forEach(location => {
+                    if(location.lat && location.lng) {
+                        const marker = L.marker([location.lat, location.lng]).addTo(map);
+                        marker.bindPopup(createPopupContent(location));
+                    }
                 });
             })
             .catch(error => console.error('Error fetching locations:', error));
-
     </script>
 </body>
 </html>
