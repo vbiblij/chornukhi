@@ -137,7 +137,8 @@
         }
 
         function addToRoute(location) {
-            if (routeWaypoints.find(wp => wp.latLng.lat === location.lat && wp.latLng.lng === location.lng)) {
+            // Corrected the check to access .lat and .lng directly on the waypoint object
+            if (routeWaypoints.find(wp => wp.lat === location.lat && wp.lng === location.lng)) {
                 alert(`${location.name} вже у вашому маршруті.`);
                 return;
             }
@@ -180,7 +181,6 @@
                 console.error('Routing error:', e);
                 alert('Не вдалося побудувати маршрут. Спробуйте інші точки або повторіть спробу пізніше.');
                 statusMessage.innerText = 'Помилка побудови маршруту.';
-                // Do not hide the build button on error, allow user to try again
                 buildRouteBtn.style.display = 'block';
             })
             .addTo(map);
