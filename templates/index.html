@@ -1,115 +1,175 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ukraine Map Tour</title>
+    <title>Інтерактивна карта Чорнухинської ОТГ</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; font-family: sans-serif; overflow: hidden; }
-        #header { height: 10%; padding: 10px; box-sizing: border-box; text-align: center; background-color: #f8f8f8; border-bottom: 1px solid #eee; position: relative; z-index: 1000; }
-        #map { height: 90%; width: 100%; position: relative; z-index: 1; }
-        #status { font-size: 1.2em; margin-bottom: 10px; }
-        #startTourBtn {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            font-size: 1.1em;
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            display: flex;
+        }
+        #map {
+            height: 100%;
+            width: 75%;
+        }
+        #sidebar {
+            width: 25%;
+            height: 100%;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+            background-color: #f8f8f8;
+        }
+        #sidebar h2 {
+            margin-top: 0;
+        }
+        #route-points li {
+            padding: 5px;
+            margin-bottom: 5px;
+            background-color: #fff;
+            border-radius: 3px;
+        }
+        .popup-content img {
+            max-width: 100%;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .popup-content button {
+            width: 100%;
+            padding: 8px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            z-index: 1000; /* Ensure button is above the map */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
-        #startTourBtn:hover {
+        .popup-content button:hover {
             background-color: #0056b3;
-        }
-        #startTourBtn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
-    <div id="header">
-        <h1>Чорнухинська ОТГ</h1>
-        <div id="status">Status: Initializing...</div>
-    </div>
+
     <div id="map"></div>
-    <button id="startTourBtn">Start Tour</button>
+    <div id="sidebar">
+        <h2>Маршрут</h2>
+        <p>Клікніть на маркер на карті та додайте точку до свого маршруту.</p>
+        <ul id="route-points"></ul>
+        <button id="clearRouteBtn" style="width:100%; padding: 10px; display:none;">Очистити маршрут</button>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Routing Machine JS -->
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
     <script>
-        const map = L.map('map').setView([48.3794, 31.1656], 6); // Centered on Ukraine
+        // 1. Initialize Map
+        const map = L.map('map').setView([50.2733, 32.9383], 11); // Centered on Chornukhy
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            maxZoom: 18,
+            attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const statusDiv = document.getElementById('status');
-        const startBtn = document.getElementById('startTourBtn');
+        // 2. State Management
+        let routeWaypoints = [];
+        const routePointsList = document.getElementById('route-points');
+        const clearRouteBtn = document.getElementById('clearRouteBtn');
+        let routingControl = null;
 
-        startBtn.addEventListener('click', () => {
-            console.log('Starting tour...');
-            startBtn.disabled = true;
-            statusDiv.textContent = 'Status: Starting simulation...';
+        // 3. Functions
+        function createPopupContent(location) {
+            const container = document.createElement('div');
+            container.className = 'popup-content';
+            
+            container.innerHTML += `<h3>${location.name}</h3>`;
+            if (location.photo) {
+                container.innerHTML += `<img src="${location.photo}" alt="${location.name}">`;
+            }
+            
+            const addButton = document.createElement('button');
+            addButton.innerText = "Додати до маршруту";
+            addButton.onclick = () => addToRoute(location);
+            
+            container.appendChild(addButton);
+            return container;
+        }
 
-            fetch('/start_tour', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data.message);
-                    statusDiv.textContent = 'Status: ' + data.message;
-                })
-                .catch(error => {
-                    console.error('Error starting tour:', error);
-                    statusDiv.textContent = 'Status: Error starting tour.';
-                    startBtn.disabled = false; // Re-enable button on error
+        function addToRoute(location) {
+            // Avoid adding duplicate points
+            if (routeWaypoints.find(wp => wp.latLng.lat === location.lat && wp.latLng.lng === location.lng)) {
+                alert(`${location.name} вже у вашому маршруті.`);
+                return;
+            }
+
+            const waypoint = L.latLng(location.lat, location.lng);
+            routeWaypoints.push(waypoint);
+            
+            // Update UI
+            const li = document.createElement('li');
+            li.innerText = location.name;
+            routePointsList.appendChild(li);
+
+            updateRouting();
+        }
+
+        function updateRouting() {
+            // Remove old routing layer
+            if (routingControl) {
+                map.removeControl(routingControl);
+            }
+
+            if (routeWaypoints.length < 2) {
+                clearRouteBtn.style.display = 'none';
+                return;
+            }
+
+            // Create new routing control
+            routingControl = L.Routing.control({
+                waypoints: routeWaypoints,
+                routeWhileDragging: true,
+                show: false, // We hide the default text instructions
+                addWaypoints: false // We manage waypoints ourselves
+            }).addTo(map);
+
+            clearRouteBtn.style.display = 'block';
+        }
+
+        function clearRoute() {
+            routeWaypoints = [];
+            routePointsList.innerHTML = '';
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            clearRouteBtn.style.display = 'none';
+        }
+        
+        clearRouteBtn.addEventListener('click', clearRoute);
+
+        // 4. Initial Data Fetch
+        fetch('/api/locations')
+            .then(response => response.json())
+            .then(locations => {
+                locations.forEach(location => {
+                    const marker = L.marker([location.lat, location.lng]).addTo(map);
+                    const popupContent = createPopupContent(location);
+                    marker.bindPopup(popupContent);
                 });
-        });
+            })
+            .catch(error => console.error('Error fetching locations:', error));
 
-        let lastStatus = "";
-        let lastLat = 0, lastLon = 0, lastZoom = 0;
-
-        setInterval(function() {
-            fetch('/api/data')
-                .then(response => response.json())
-                .then(data => {
-                    const camera = data.camera;
-                    const status = data.status;
-
-                    // Update status text if it has changed
-                    if (status !== lastStatus) {
-                        statusDiv.textContent = 'Status: ' + status;
-                        lastStatus = status;
-
-                        // Re-enable button if tour is finished and button is disabled
-                        if (status.includes("Finished") && startBtn.disabled) {
-                            startBtn.disabled = false;
-                        }
-                    }
-                    
-                    // Update map view if it has changed. Use setView for direct control.
-                    if (camera.lat !== lastLat || camera.lon !== lastLon || camera.zoom !== lastZoom) {
-                        map.setView([camera.lat, camera.lon], Math.round(camera.zoom));
-                        lastLat = camera.lat;
-                        lastLon = camera.lon;
-                        lastZoom = camera.zoom;
-                    }
-                })
-                .catch(error => {
-                    statusDiv.textContent = 'Status: Connection error';
-                    console.error('Error fetching data:', error);
-                });
-        }, 50); // Poll every 50ms for smoother updates
     </script>
-
 </body>
 </html>
