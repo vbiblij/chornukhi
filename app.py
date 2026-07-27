@@ -1,6 +1,7 @@
 import time
 from data import HROMADA_CENTER, SETTLEMENTS
 import sys
+import os
 from flask import Flask, Response, render_template_string, jsonify
 import threading
 from core.process import Process
@@ -31,11 +32,11 @@ class WebServerProcess(Process):
     """
     A process that runs a Flask web server to provide map data via a JSON API.
     """
-    def __init__(self, name: str, event_bus: EventBus, host: str = '127.0.0.1', port: int = 5000):
+    def __init__(self, name: str, event_bus: EventBus, host: str = '0.0.0.0', port: int = None):
         super().__init__(name=name)
         self.event_bus = event_bus
         self.host = host
-        self.port = port
+        self.port = port if port else int(os.environ.get("PORT", 5000))
         self.server_thread = None
         
         # Subscribe to events from the simulation
@@ -147,7 +148,6 @@ def main():
     print("-" * 30)
     print(f"Starting map tour simulation for Chornukhy Hromada...")
     print(f"Video will be saved to {VIDEO_OUTPUT_FILENAME}")
-    print(f"Please open your web browser to http://127.0.0.1:5000")
 
     # Create the main map process
     map_process = MapProcess(
