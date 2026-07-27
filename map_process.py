@@ -33,12 +33,12 @@ class MapProcess(Process):
         )
         self.add_layer(self.map_render_layer)
 
-        self.video_record_layer = VideoRecordLayer(
-            output_filepath=video_output_path,
-            fps=fps,
-            shared_frame_buffer=self.frame_buffer
-        )
-        self.add_layer(self.video_record_layer)
+        # self.video_record_layer = VideoRecordLayer(
+        #     output_filepath=video_output_path,
+        #     fps=fps,
+        #     shared_frame_buffer=self.frame_buffer
+        # )
+        # self.add_layer(self.video_record_layer)
 
         # Setup child processes
         self.animation_process = AnimationProcess(
