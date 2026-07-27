@@ -171,7 +171,7 @@ def main():
         print(f"An error occurred during simulation: {e}", file=sys.stderr)
     finally:
         print("Shutting down...")
-        map_process.shutdown()
+        # map_process.shutdown()
         print(f"Simulation finished. Total run time: {time.time() - start_time:.2f} seconds.")
 
 if __name__ == "__main__":
